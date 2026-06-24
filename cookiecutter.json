@@ -6,18 +6,7 @@
   "vpc_cidr_dev": "10.0.0.0/16",
   "vpc_cidr_staging": "10.1.0.0/16",
   "vpc_cidr_prod": "10.2.0.0/16",
-  "cluster_version": "1.30",
-  "cluster_type": ["cloud", "hybrid"],
-  "node_instance_types": "m5.large",
-  "node_min_size_dev": "2",
-  "node_max_size_dev": "10",
-  "node_desired_size_dev": "3",
-  "node_min_size_prod": "3",
-  "node_max_size_prod": "50",
-  "node_desired_size_prod": "5",
-  "cluster_endpoint_public_access": ["false", "true"],
-  "enable_hybrid": ["no", "yes"],
-  "remote_node_cidrs": "172.16.0.0/16",
-  "remote_pod_cidrs": "172.17.0.0/16",
-  "_copy_without_render": [".github"]
+  "enable_networking": ["no", "yes"],
+  "deploy_staging": ["yes", "no"],
+  "deploy_prod": ["yes", "no"]
 }

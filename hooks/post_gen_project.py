@@ -6,57 +6,69 @@ PROJECT_SLUG = "{{ cookiecutter.project_slug }}"
 VPC_CIDR_DEV = "{{ cookiecutter.vpc_cidr_dev }}"
 VPC_CIDR_STAGING = "{{ cookiecutter.vpc_cidr_staging }}"
 VPC_CIDR_PROD = "{{ cookiecutter.vpc_cidr_prod }}"
-NODE_MIN_DEV = "{{ cookiecutter.node_min_size_dev }}"
-NODE_MAX_DEV = "{{ cookiecutter.node_max_size_dev }}"
-NODE_DESIRED_DEV = "{{ cookiecutter.node_desired_size_dev }}"
-NODE_MIN_PROD = "{{ cookiecutter.node_min_size_prod }}"
-NODE_MAX_PROD = "{{ cookiecutter.node_max_size_prod }}"
-NODE_DESIRED_PROD = "{{ cookiecutter.node_desired_size_prod }}"
+REGION = "{{ cookiecutter.aws_region }}"
+DEPLOY_STAGING = "{{ cookiecutter.deploy_staging }}"
+DEPLOY_PROD = "{{ cookiecutter.deploy_prod }}"
 
-ENV_DIR = os.path.join("environments")
+ENV_DIR = "environments"
 
 
-def generate_env(source_env, target_env, vpc_cidr, node_min, node_max, node_desired, single_nat):
-    """Copy source env and adjust values for target env."""
-    src = os.path.join(ENV_DIR, source_env)
+def write_env_hcl(dst, target_env):
+    env_hcl = os.path.join(dst, "env.hcl")
+    lines = [
+        "locals {",
+        '  environment = "' + target_env + '"',
+        '  region      = "' + REGION + '"',
+        '  project     = "' + PROJECT_SLUG + '"',
+        "}",
+        "",
+    ]
+    with open(env_hcl, "w") as f:
+        f.write(chr(10).join(lines))
+
+
+def generate_env(target_env, vpc_cidr, single_nat):
+    src = os.path.join(ENV_DIR, "dev")
     dst = os.path.join(ENV_DIR, target_env)
 
     if os.path.exists(dst):
         shutil.rmtree(dst)
-
     shutil.copytree(src, dst)
 
-    for fname in os.listdir(dst):
-        fpath = os.path.join(dst, fname)
-        if not os.path.isfile(fpath):
-            continue
-        with open(fpath, "r") as f:
-            content = f.read()
+    for root, dirs, files in os.walk(dst):
+        for fname in files:
+            fpath = os.path.join(root, fname)
+            with open(fpath, "r") as f:
+                content = f.read()
 
-        # Replace env-specific values
-        content = content.replace(f"-dev", f"-{target_env}")
-        content = content.replace(f'environment = "dev"', f'environment = "{target_env}"')
-        content = content.replace(f'environment = "dev"', f'environment = "{target_env}"')
-        content = content.replace(VPC_CIDR_DEV, vpc_cidr)
-        content = content.replace(f"tfstate-dev", f"tfstate-{target_env}")
-        content = content.replace(f"tflock-dev", f"tflock-{target_env}")
-        content = content.replace(f"single_nat_gateway = true", f"single_nat_gateway = {single_nat}")
-        content = content.replace(f"min_size       = {NODE_MIN_DEV}", f"min_size       = {node_min}")
-        content = content.replace(f"max_size       = {NODE_MAX_DEV}", f"max_size       = {node_max}")
-        content = content.replace(f"desired_size   = {NODE_DESIRED_DEV}", f"desired_size   = {node_desired}")
+            content = content.replace(PROJECT_SLUG + "-dev", PROJECT_SLUG + "-" + target_env)
+            content = content.replace('environment = "dev"', 'environment = "' + target_env + '"')
+            content = content.replace('Environment = "dev"', 'Environment = "' + target_env + '"')
+            content = content.replace(VPC_CIDR_DEV, vpc_cidr)
+            content = content.replace("single_nat_gateway = true", "single_nat_gateway = " + single_nat)
 
-        # Criticality
-        if target_env == "prod":
-            content = content.replace('criticality = "medium"', 'criticality = "critical"')
+            with open(fpath, "w") as f:
+                f.write(content)
 
-        with open(fpath, "w") as f:
-            f.write(content)
+    write_env_hcl(dst, target_env)
 
 
-# Generate staging (same node sizes as dev, different CIDR)
-generate_env("dev", "staging", VPC_CIDR_STAGING, NODE_MIN_DEV, NODE_MAX_DEV, NODE_DESIRED_DEV, "true")
+if DEPLOY_STAGING == "yes":
+    generate_env("staging", VPC_CIDR_STAGING, "true")
+    print("Generated: staging")
+else:
+    shutil.rmtree(os.path.join(ENV_DIR, "staging"), ignore_errors=True)
+    print("Skipped: staging")
 
-# Generate prod (bigger nodes, multi-NAT, different CIDR)
-generate_env("dev", "prod", VPC_CIDR_PROD, NODE_MIN_PROD, NODE_MAX_PROD, NODE_DESIRED_PROD, "false")
+if DEPLOY_PROD == "yes":
+    generate_env("prod", VPC_CIDR_PROD, "false")
+    print("Generated: prod")
+else:
+    shutil.rmtree(os.path.join(ENV_DIR, "prod"), ignore_errors=True)
+    print("Skipped: prod")
 
-print("✅ Generated environments: dev, staging, prod")
+script = os.path.join("scripts", "create-backend.sh")
+if os.path.exists(script):
+    os.chmod(script, 0o755)
+
+print("Infrastructure boilerplate ready: " + PROJECT_SLUG)
