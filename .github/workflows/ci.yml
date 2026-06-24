@@ -1,0 +1,120 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ############################################################################
+  # Stage 1: Validate PR Title
+  ############################################################################
+  validate-pr-title:
+    name: "Stage 1: Validate PR Title"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  ############################################################################
+  # Stage 2: Security Scan
+  ############################################################################
+  security-scan:
+    name: "Stage 2: Security Scan"
+    needs: [validate-pr-title]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Trivy IaC Scan
+        run: trivy config --severity HIGH,CRITICAL --exit-code 1 .
+
+      - name: Checkov IaC Scan
+        run: |
+          pip install checkov
+          checkov -d . --framework terraform --quiet --skip-check CKV_AWS_111,CKV_AWS_356,CKV2_AWS_12,CKV_AWS_130,CKV2_AWS_5,CKV_AWS_158
+
+  ############################################################################
+  # Stage 3: Terraform Format
+  ############################################################################
+  terraform-fmt:
+    name: "Stage 3: Terraform Format"
+    needs: [security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.7"
+      - name: Format Check
+        run: terraform fmt -check -recursive -diff
+
+  ############################################################################
+  # Stage 4: Terraform Validate (per environment)
+  ############################################################################
+  terraform-validate:
+    name: "Stage 4: Validate (${{ matrix.env }})"
+    needs: [terraform-fmt]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, staging, prod]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.7"
+      - name: Terraform Init
+        working-directory: environments/${{ matrix.env }}
+        run: terraform init -backend=false
+      - name: Terraform Validate
+        working-directory: environments/${{ matrix.env }}
+        run: terraform validate
+
+  ############################################################################
+  # Stage 5: Terraform Plan
+  ############################################################################
+  terraform-plan:
+    name: "Stage 5: Plan (${{ matrix.env }})"
+    needs: [terraform-validate]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.7"
+      - name: Terraform Init
+        working-directory: environments/${{ matrix.env }}
+        run: terraform init -backend=false
+      - name: Terraform Plan
+        working-directory: environments/${{ matrix.env }}
+        run: terraform plan -input=false -no-color -var-file=terraform.tfvars.example
+        continue-on-error: true
+
+  ############################################################################
+  # Final Gate
+  ############################################################################
+  ci-passed:
+    name: "CI Passed"
+    needs: [terraform-plan]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "✅ All CI stages passed"

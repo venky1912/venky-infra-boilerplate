@@ -1,0 +1,2 @@
+# Intentional: EKS nodes need unrestricted egress for pulling images, API calls, etc.
+AVD-AWS-0104
