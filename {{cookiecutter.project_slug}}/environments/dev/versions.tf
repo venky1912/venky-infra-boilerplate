@@ -12,12 +12,11 @@ terraform {
     }
   }
 
-  # Uncomment for remote state
   # backend "s3" {
-  #   bucket         = "{{ cookiecutter.project_slug }}-tfstate-{{ cookiecutter.environment }}"
+  #   bucket         = "{{ cookiecutter.project_slug }}-tfstate-dev"
   #   key            = "infra/terraform.tfstate"
   #   region         = "{{ cookiecutter.aws_region }}"
-  #   dynamodb_table = "{{ cookiecutter.project_slug }}-tflock-{{ cookiecutter.environment }}"
+  #   dynamodb_table = "{{ cookiecutter.project_slug }}-tflock-dev"
   #   encrypt        = true
   # }
 }
