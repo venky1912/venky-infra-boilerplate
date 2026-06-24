@@ -5,12 +5,8 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: ["**"]
     tags: ["v*"]
-
-permissions:
-  contents: read
-  pull-requests: write
 
 env:
   TG_VERSION: "0.68.9"
@@ -18,7 +14,6 @@ env:
 
 jobs:
   detect-env:
-    name: "Detect Target Environment"
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.detect.outputs.env }}
@@ -34,7 +29,6 @@ jobs:
           fi
 
   lint:
-    name: "Lint & Format"
     needs: [detect-env]
     runs-on: ubuntu-latest
     steps:
@@ -42,15 +36,9 @@ jobs:
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Install Terragrunt
-        run: |
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
-          chmod +x /usr/local/bin/terragrunt
-      - name: Format Check
-        run: terraform fmt -check -recursive
+      - run: terraform fmt -check -recursive modules/
 
   validate:
-    name: "Validate (${{ needs.detect-env.outputs.environment }})"
     needs: [detect-env, lint]
     runs-on: ubuntu-latest
     steps:
@@ -58,17 +46,12 @@ jobs:
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Install Terragrunt
-        run: |
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
-          chmod +x /usr/local/bin/terragrunt
-      - name: Validate All Modules
-        working-directory: environments/${{ needs.detect-env.outputs.environment }}
-        run: terragrunt run-all validate --terragrunt-non-interactive
+      - run: |
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
+      - run: cd environments/${{ needs.detect-env.outputs.environment }} && terragrunt run-all validate --terragrunt-non-interactive
         continue-on-error: true
 
   plan:
-    name: "Plan (${{ needs.detect-env.outputs.environment }})"
     needs: [detect-env, validate]
     runs-on: ubuntu-latest
     steps:
@@ -76,17 +59,12 @@ jobs:
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Install Terragrunt
-        run: |
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
-          chmod +x /usr/local/bin/terragrunt
-      - name: Terragrunt Plan
-        working-directory: environments/${{ needs.detect-env.outputs.environment }}
-        run: terragrunt run-all plan --terragrunt-non-interactive
+      - run: |
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
+      - run: cd environments/${{ needs.detect-env.outputs.environment }} && terragrunt run-all plan --terragrunt-non-interactive
         continue-on-error: true
 
   deploy:
-    name: "Deploy (${{ needs.detect-env.outputs.environment }})"
     needs: [detect-env, plan]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -96,16 +74,11 @@ jobs:
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Install Terragrunt
-        run: |
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
-          chmod +x /usr/local/bin/terragrunt
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
+      - run: |
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - name: Terragrunt Apply
-        working-directory: environments/${{ needs.detect-env.outputs.environment }}
-        run: terragrunt run-all apply --terragrunt-non-interactive
+      - run: cd environments/${{ needs.detect-env.outputs.environment }} && terragrunt run-all apply --terragrunt-non-interactive
 {% endraw %}

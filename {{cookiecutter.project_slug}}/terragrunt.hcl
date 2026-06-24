@@ -1,11 +1,11 @@
-# Root terragrunt.hcl
-# Common config inherited by all environments
+# Root terragrunt.hcl — state, provider generation
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.environment
-  region   = local.env_vars.locals.region
-  project  = local.env_vars.locals.project
+  shared     = read_terragrunt_config("${get_parent_terragrunt_dir()}/shared.hcl")
+  env_config = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+  env        = local.env_config.locals.environment
+  region     = local.shared.locals.region
+  project    = local.shared.locals.project
 }
 
 generate "provider" {
@@ -14,22 +14,6 @@ generate "provider" {
   contents  = <<-EOF
     provider "aws" {
       region = "${local.region}"
-    }
-  EOF
-}
-
-generate "versions" {
-  path      = "versions.tf"
-  if_exists = "overwrite_terragrunt"
-  contents  = <<-EOF
-    terraform {
-      required_version = ">= 1.5.0"
-      required_providers {
-        aws = {
-          source  = "hashicorp/aws"
-          version = ">= 5.0, < 7.0"
-        }
-      }
     }
   EOF
 }
@@ -47,10 +31,4 @@ remote_state {
     path      = "backend.tf"
     if_exists = "overwrite_terragrunt"
   }
-}
-
-inputs = {
-  project     = local.project
-  environment = local.env
-  region      = local.region
 }
