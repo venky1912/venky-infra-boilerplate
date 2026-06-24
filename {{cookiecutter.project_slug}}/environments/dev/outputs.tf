@@ -1,0 +1,15 @@
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+output "cluster_name" {
+  value = module.eks.cluster_name
+}
+
+output "cluster_endpoint" {
+  value = module.eks.cluster_endpoint
+}
+
+output "kubeconfig_command" {
+  value = "aws eks update-kubeconfig --region {{ cookiecutter.aws_region }} --name {{ cookiecutter.project_slug }}-dev"
+}

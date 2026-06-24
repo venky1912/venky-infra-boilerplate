@@ -1,54 +1,38 @@
-# {{ cookiecutter.project_name }} - Infrastructure
+# {{ cookiecutter.project_name }}
 
-Infrastructure for **{{ cookiecutter.project_name }}** ({{ cookiecutter.environment }}) in `{{ cookiecutter.aws_region }}`.
+Infrastructure for **{{ cookiecutter.project_name }}** managed by Terraform.
 
-## Configuration
+## Environments
 
-| Setting | Value |
-|---------|-------|
-| Project | {{ cookiecutter.project_name }} |
-| Environment | {{ cookiecutter.environment }} |
-| Region | {{ cookiecutter.aws_region }} |
-| VPC CIDR | {{ cookiecutter.vpc_cidr }} |
-| Cluster Type | {{ cookiecutter.cluster_type }} |
-| Cluster Version | {{ cookiecutter.cluster_version }} |
-| Node Types | {{ cookiecutter.node_instance_types }} |
-| Nodes | {{ cookiecutter.node_min_size }}-{{ cookiecutter.node_max_size }} (desired: {{ cookiecutter.node_desired_size }}) |
+| Environment | VPC CIDR | NAT | Nodes |
+|-------------|----------|-----|-------|
+| dev | {{ cookiecutter.vpc_cidr_dev }} | Single | {{ cookiecutter.node_min_size_dev }}-{{ cookiecutter.node_max_size_dev }} |
+| staging | {{ cookiecutter.vpc_cidr_staging }} | Single | {{ cookiecutter.node_min_size_dev }}-{{ cookiecutter.node_max_size_dev }} |
+| prod | {{ cookiecutter.vpc_cidr_prod }} | Multi-AZ | {{ cookiecutter.node_min_size_prod }}-{{ cookiecutter.node_max_size_prod }} |
 
 ## Prerequisites
 
 - Terraform >= 1.5.0
-- AWS CLI >= 2.x configured
+- AWS CLI >= 2.x
 - kubectl >= 1.28
-- S3 bucket + DynamoDB table for state (see scripts/create-backend.sh)
 
-## Usage
+## Quick Start
 
 ```bash
-# Initialise
-make init
+# Create state backend
+./scripts/create-backend.sh dev
+./scripts/create-backend.sh staging
+./scripts/create-backend.sh prod
 
-# Plan
-make plan
+# Deploy dev
+make init ENV=dev
+make plan ENV=dev
+make apply ENV=dev
 
-# Apply
-make apply
-
-# Connect to cluster
-$(terraform output -raw kubeconfig_command)
+# Connect
+aws eks update-kubeconfig --region {{ cookiecutter.aws_region }} --name {{ cookiecutter.project_slug }}-dev
 kubectl get nodes
 ```
-
-## Modules
-
-| Module | Version |
-|--------|---------|
-| venky-terraform-module-tags | v0.1.0 |
-| venky-terraform-module-vpc | v0.1.3 |
-| venky-terraform-module-iam | v1.0.1 |
-| venky-terraform-module-security | v1.0.2 |
-| venky-terraform-module-eks | v0.2.1 |
-| venky-terraform-module-eks-addons | v0.1.1 |
 
 ## Update from Template
 
