@@ -5,11 +5,11 @@
 module "tags" {
   source = "git::https://github.com/venky1912/venky-terraform-module-tags.git?ref=v0.1.0"
 
-  project     = var.project_name
-  environment = var.environment
-  owner       = var.owner
-  region      = var.region
-  criticality = var.environment == "prod" ? "critical" : "medium"
+  project     = "{{ cookiecutter.project_name }}"
+  environment = "{{ cookiecutter.environment }}"
+  owner       = "{{ cookiecutter.owner }}"
+  region      = "{{ cookiecutter.aws_region }}"
+  criticality = "{{ cookiecutter.environment }}" == "prod" ? "critical" : "medium"
 }
 
 ################################################################################
@@ -19,28 +19,28 @@ module "tags" {
 module "vpc" {
   source = "git::https://github.com/venky1912/venky-terraform-module-vpc.git?ref=v0.1.3"
 
-  name               = "${var.project_name}-${var.environment}"
-  cidr_block         = var.vpc_cidr
-  availability_zones = var.availability_zones
+  name               = "{{ cookiecutter.project_slug }}-{{ cookiecutter.environment }}"
+  cidr_block         = "{{ cookiecutter.vpc_cidr }}"
+  availability_zones = ["{{ cookiecutter.aws_region }}a", "{{ cookiecutter.aws_region }}b", "{{ cookiecutter.aws_region }}c"]
 
-  public_subnet_cidrs   = var.public_subnet_cidrs
-  private_subnet_cidrs  = var.private_subnet_cidrs
-  database_subnet_cidrs = var.database_subnet_cidrs
+  public_subnet_cidrs   = [{% for cidr in cookiecutter.public_subnet_cidrs.split(',') %}"{{ cidr | trim }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+  private_subnet_cidrs  = [{% for cidr in cookiecutter.private_subnet_cidrs.split(',') %}"{{ cidr | trim }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+  database_subnet_cidrs = [{% for cidr in cookiecutter.database_subnet_cidrs.split(',') %}"{{ cidr | trim }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 
   enable_nat_gateway = true
-  single_nat_gateway = var.single_nat_gateway
+  single_nat_gateway = {{ cookiecutter.single_nat_gateway }}
 
   enable_s3_endpoint       = true
   enable_dynamodb_endpoint = true
   interface_endpoints      = ["ec2", "ecr.api", "ecr.dkr", "sts", "logs", "elasticloadbalancing"]
 
   private_subnet_tags = {
-    "kubernetes.io/role/internal-elb"                              = "1"
-    "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "shared"
+    "kubernetes.io/role/internal-elb"                                              = "1"
+    "kubernetes.io/cluster/{{ cookiecutter.project_slug }}-{{ cookiecutter.environment }}" = "shared"
   }
   public_subnet_tags = {
-    "kubernetes.io/role/elb"                                       = "1"
-    "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "shared"
+    "kubernetes.io/role/elb"                                                        = "1"
+    "kubernetes.io/cluster/{{ cookiecutter.project_slug }}-{{ cookiecutter.environment }}" = "shared"
   }
 
   tags = module.tags.tags
@@ -53,7 +53,7 @@ module "vpc" {
 module "iam" {
   source = "git::https://github.com/venky1912/venky-terraform-module-iam.git?ref=v1.0.1"
 
-  name = "${var.project_name}-${var.environment}"
+  name = "{{ cookiecutter.project_slug }}-{{ cookiecutter.environment }}"
 
   roles = {
     eks-cluster = {
@@ -91,12 +91,15 @@ module "iam" {
 ################################################################################
 
 module "security" {
-  source = "git::https://github.com/venky1912/venky-terraform-module-security.git?ref=v1.0.1"
+  source = "git::https://github.com/venky1912/venky-terraform-module-security.git?ref=v1.0.2"
 
-  name = "${var.project_name}-${var.environment}"
+  name = "{{ cookiecutter.project_slug }}-{{ cookiecutter.environment }}"
 
   kms_keys = {
-    eks = { description = "EKS secrets encryption" }
+    eks = {
+      description         = "EKS secrets encryption"
+      enable_key_rotation = true
+    }
   }
 
   security_groups = {
@@ -109,7 +112,7 @@ module "security" {
           from_port   = 443
           to_port     = 443
           ip_protocol = "tcp"
-          cidr_ipv4   = var.vpc_cidr
+          cidr_ipv4   = "{{ cookiecutter.vpc_cidr }}"
         }
       }
       egress_rules = {
@@ -129,21 +132,21 @@ module "security" {
           from_port   = 1025
           to_port     = 65535
           ip_protocol = "tcp"
-          cidr_ipv4   = var.vpc_cidr
+          cidr_ipv4   = "{{ cookiecutter.vpc_cidr }}"
         }
         cluster-to-nodes-https = {
           description = "Cluster to nodes HTTPS (webhooks)"
           from_port   = 443
           to_port     = 443
           ip_protocol = "tcp"
-          cidr_ipv4   = var.vpc_cidr
+          cidr_ipv4   = "{{ cookiecutter.vpc_cidr }}"
         }
         node-to-node = {
           description = "Node to node communication"
           from_port   = 0
           to_port     = 65535
           ip_protocol = "-1"
-          cidr_ipv4   = var.vpc_cidr
+          cidr_ipv4   = "{{ cookiecutter.vpc_cidr }}"
         }
       }
       egress_rules = {
@@ -166,55 +169,56 @@ module "security" {
 module "eks" {
   source = "git::https://github.com/venky1912/venky-terraform-module-eks.git?ref=v0.2.1"
 
-  name               = "${var.project_name}-${var.environment}"
-  cluster_version    = var.cluster_version
-  cluster_role_arn   = module.iam.role_arns["eks-cluster"]
-  subnet_ids         = module.vpc.private_subnet_ids
+  name             = "{{ cookiecutter.project_slug }}-{{ cookiecutter.environment }}"
+  cluster_version  = "{{ cookiecutter.cluster_version }}"
+  cluster_role_arn = module.iam.role_arns["eks-cluster"]
+  subnet_ids       = module.vpc.private_subnet_ids
   security_group_ids = [module.security.security_group_ids["eks-cluster"]]
 
-  cluster_type                         = var.cluster_type
-  cluster_endpoint_private_access      = true
-  cluster_endpoint_public_access       = var.cluster_endpoint_public_access
-  cluster_endpoint_public_access_cidrs = var.cluster_endpoint_public_access_cidrs
+  cluster_type                    = "{{ cookiecutter.cluster_type }}"
+  cluster_endpoint_private_access = true
+  cluster_endpoint_public_access  = {{ cookiecutter.cluster_endpoint_public_access }}
 
   cluster_encryption_kms_key_arn = module.security.kms_key_arns["eks"]
+{% if cookiecutter.enable_hybrid == 'yes' %}
+  remote_network_config = {
+    remote_node_cidrs = ["{{ cookiecutter.remote_node_cidrs }}"]
+    remote_pod_cidrs  = ["{{ cookiecutter.remote_pod_cidrs }}"]
+  }
 
-  # Hybrid configuration (only used when cluster_type = "hybrid")
-  remote_network_config = var.cluster_type == "hybrid" ? {
-    remote_node_cidrs = var.remote_node_cidrs
-    remote_pod_cidrs  = var.remote_pod_cidrs
-  } : null
-
-  hybrid_node_role_arn = var.cluster_type == "hybrid" ? module.hybrid_node_role[0].role_arn : null
-
+  hybrid_node_role_arn = module.hybrid_node_role[0].role_arn
+{% else %}
+  remote_network_config = null
+  hybrid_node_role_arn  = null
+{% endif %}
   managed_node_groups = {
     general = {
       node_role_arn  = module.iam.role_arns["eks-node"]
-      instance_types = var.node_instance_types
-      min_size       = var.node_min_size
-      max_size       = var.node_max_size
-      desired_size   = var.node_desired_size
-      disk_size      = var.node_disk_size
-      labels         = { workload = "general", environment = var.environment }
+      instance_types = ["{{ cookiecutter.node_instance_types }}"]
+      min_size       = {{ cookiecutter.node_min_size }}
+      max_size       = {{ cookiecutter.node_max_size }}
+      desired_size   = {{ cookiecutter.node_desired_size }}
+      disk_size      = 50
+      labels         = { workload = "general", environment = "{{ cookiecutter.environment }}" }
     }
   }
 
   tags = module.tags.tags
 }
-
+{% if cookiecutter.enable_hybrid == 'yes' %}
 ################################################################################
-# Hybrid Node Role (only when cluster_type = "hybrid")
+# Hybrid Node Role
 ################################################################################
 
 module "hybrid_node_role" {
-  count  = var.cluster_type == "hybrid" ? 1 : 0
+  count  = 1
   source = "git::https://github.com/venky1912/venky-terraform-module-eks.git//modules/hybrid-node-role?ref=v0.2.1"
 
-  cluster_name = "${var.project_name}-${var.environment}"
+  cluster_name = "{{ cookiecutter.project_slug }}-{{ cookiecutter.environment }}"
 
   tags = module.tags.tags
 }
-
+{% endif %}
 ################################################################################
 # EKS Managed Add-ons
 ################################################################################
