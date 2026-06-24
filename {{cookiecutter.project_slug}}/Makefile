@@ -3,22 +3,20 @@
 ENV ?= dev
 
 init:
-	cd environments/$(ENV) && terraform init
+	cd environments/$(ENV) && terragrunt run-all init --terragrunt-non-interactive
 
 plan:
-	cd environments/$(ENV) && terraform plan -out=tfplan
+	cd environments/$(ENV) && terragrunt run-all plan --terragrunt-non-interactive
 
 apply:
-	cd environments/$(ENV) && terraform apply tfplan
+	cd environments/$(ENV) && terragrunt run-all apply --terragrunt-non-interactive
 
 destroy:
-	cd environments/$(ENV) && terraform destroy
+	cd environments/$(ENV) && terragrunt run-all destroy --terragrunt-non-interactive
 
 fmt:
+	terragrunt hclfmt
 	terraform fmt -recursive
 
 validate:
-	@for dir in environments/*/; do \
-		echo "=== Validating $$dir ==="; \
-		(cd $$dir && terraform init -backend=false && terraform validate); \
-	done
+	cd environments/$(ENV) && terragrunt run-all validate --terragrunt-non-interactive

@@ -1,41 +1,49 @@
-# {{ cookiecutter.project_name }}
+# {{ cookiecutter.project_name }} - Infrastructure
 
-Infrastructure for **{{ cookiecutter.project_name }}** managed by Terraform.
-
-## Environments
-
-| Environment | VPC CIDR | NAT | Nodes |
-|-------------|----------|-----|-------|
-| dev | {{ cookiecutter.vpc_cidr_dev }} | Single | {{ cookiecutter.node_min_size_dev }}-{{ cookiecutter.node_max_size_dev }} |
-| staging | {{ cookiecutter.vpc_cidr_staging }} | Single | {{ cookiecutter.node_min_size_dev }}-{{ cookiecutter.node_max_size_dev }} |
-| prod | {{ cookiecutter.vpc_cidr_prod }} | Multi-AZ | {{ cookiecutter.node_min_size_prod }}-{{ cookiecutter.node_max_size_prod }} |
+Base infrastructure (VPC, IAM, Security) managed with Terragrunt.
 
 ## Prerequisites
 
-- Terraform >= 1.5.0
-- AWS CLI >= 2.x
-- kubectl >= 1.28
+| Tool | Version | Install |
+|------|---------|---------|
+| Terraform | >= 1.5.0 | `brew install hashicorp/tap/terraform` |
+| Terragrunt | >= 0.68 | `brew install terragrunt` |
+| AWS CLI | >= 2.x | `brew install awscli` |
 
-## Quick Start
+## Environments
+
+| Env | VPC CIDR | Status |
+|-----|----------|--------|
+| dev | {{ cookiecutter.vpc_cidr_dev }} | ✅ |
+{% if cookiecutter.deploy_staging == 'yes' %}| staging | {{ cookiecutter.vpc_cidr_staging }} | ✅ |{% endif %}
+{% if cookiecutter.deploy_prod == 'yes' %}| prod | {{ cookiecutter.vpc_cidr_prod }} | ✅ |{% endif %}
+
+## Usage
 
 ```bash
 # Create state backend
 ./scripts/create-backend.sh dev
-./scripts/create-backend.sh staging
-./scripts/create-backend.sh prod
 
-# Deploy dev
-make init ENV=dev
+# Deploy dev infra
 make plan ENV=dev
 make apply ENV=dev
 
-# Connect
-aws eks update-kubeconfig --region {{ cookiecutter.aws_region }} --name {{ cookiecutter.project_slug }}-dev
-kubectl get nodes
+# Deploy staging
+make plan ENV=staging
+make apply ENV=staging
 ```
 
-## Update from Template
+## Pipeline
 
-```bash
-cruft update
-```
+| Trigger | Target Env |
+|---------|-----------|
+| PR to main | Plan only |
+| Merge to main | Deploy staging |
+| Tag v* | Deploy prod |
+| Any branch push | Deploy dev |
+
+## What's Deployed
+
+- **VPC**: Multi-AZ, public/private/database subnets, NAT, VPC endpoints
+- **IAM**: EKS cluster role, node role, instance profiles
+- **Security**: KMS keys, EKS security groups (all required ports)

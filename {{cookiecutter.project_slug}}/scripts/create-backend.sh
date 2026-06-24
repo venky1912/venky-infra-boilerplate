@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ENV=${1:?"Usage: $0 <dev|staging|prod> [region]"}
-REGION=${2:-"{{ cookiecutter.aws_region }}"}
+ENV=${1:?"Usage: $0 <dev|staging|prod>"}
+REGION="{{ cookiecutter.aws_region }}"
 BUCKET="{{ cookiecutter.project_slug }}-tfstate-${ENV}"
 TABLE="{{ cookiecutter.project_slug }}-tflock-${ENV}"
 
@@ -21,4 +21,4 @@ aws dynamodb create-table --table-name "${TABLE}" \
   --key-schema AttributeName=LockID,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST --region "${REGION}" 2>/dev/null || echo "Table exists"
 
-echo "✅ Done. Uncomment backend block in environments/${ENV}/versions.tf"
+echo "✅ Backend ready for ${ENV}"
