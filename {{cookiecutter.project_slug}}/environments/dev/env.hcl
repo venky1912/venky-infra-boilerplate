@@ -1,5 +1,5 @@
 locals {
-  environment = "dev"
-  region      = "{{ cookiecutter.aws_region }}"
-  project     = "{{ cookiecutter.project_slug }}"
+  environment    = "dev"
+  vpc_cidr       = "{{ cookiecutter.vpc_cidr_dev }}"
+  single_nat     = true
 }

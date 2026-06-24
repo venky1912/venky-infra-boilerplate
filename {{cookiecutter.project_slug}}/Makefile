@@ -1,9 +1,6 @@
-.PHONY: init plan apply destroy fmt validate
+.PHONY: plan apply destroy validate fmt
 
 ENV ?= dev
-
-init:
-	cd environments/$(ENV) && terragrunt run-all init --terragrunt-non-interactive
 
 plan:
 	cd environments/$(ENV) && terragrunt run-all plan --terragrunt-non-interactive
@@ -14,9 +11,8 @@ apply:
 destroy:
 	cd environments/$(ENV) && terragrunt run-all destroy --terragrunt-non-interactive
 
-fmt:
-	terragrunt hclfmt
-	terraform fmt -recursive
-
 validate:
 	cd environments/$(ENV) && terragrunt run-all validate --terragrunt-non-interactive
+
+fmt:
+	terraform fmt -recursive modules/

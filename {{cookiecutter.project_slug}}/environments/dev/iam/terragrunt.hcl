@@ -1,46 +1,24 @@
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("terragrunt.hcl")
+}
+
+locals {
+  shared = read_terragrunt_config("${get_parent_terragrunt_dir()}/../shared.hcl")
+  env    = read_terragrunt_config(find_in_parent_folders("env.hcl"))
 }
 
 terraform {
-  source = "git::https://github.com/venky1912/venky-terraform-module-iam.git?ref=v1.0.1"
+  source = "${get_parent_terragrunt_dir()}/../modules/iam"
 }
 
 inputs = {
-  name = "{{ cookiecutter.project_slug }}-dev"
-
-  roles = {
-    eks-cluster = {
-      description = "EKS cluster role"
-      trust_policy_statements = [{
-        actions   = ["sts:AssumeRole"]
-        principal = { Service = "eks.amazonaws.com" }
-      }]
-      policy_arns = [
-        "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
-        "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController",
-      ]
-    }
-    eks-node = {
-      description = "EKS managed node group role"
-      trust_policy_statements = [{
-        actions   = ["sts:AssumeRole"]
-        principal = { Service = "ec2.amazonaws.com" }
-      }]
-      policy_arns = [
-        "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
-        "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-        "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-        "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
-      ]
-      create_instance_profile = true
-    }
-  }
+  name  = "${local.shared.locals.project}-${local.env.locals.environment}"
+  roles = local.shared.locals.iam_roles
 
   tags = {
-    Project     = "{{ cookiecutter.project_name }}"
-    Environment = "dev"
-    Owner       = "{{ cookiecutter.owner }}"
+    Project     = local.shared.locals.project
+    Environment = local.env.locals.environment
+    Owner       = local.shared.locals.owner
     ManagedBy   = "terragrunt"
   }
 }
